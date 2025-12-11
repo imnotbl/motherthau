@@ -1,6 +1,4 @@
 // tickets/transcriptSystem.js
-// Generează HTML PREMIUM pentru transcript
-
 const escape = require("escape-html");
 
 module.exports = {
@@ -22,12 +20,14 @@ module.exports = {
 
         messages.reverse();
 
-        let html = `
-<!DOCTYPE html>
+        const ticketName = channel.name;
+        const now = new Date().toLocaleString("ro-RO");
+
+        let html = `<!DOCTYPE html>
 <html lang="ro">
 <head>
     <meta charset="UTF-8" />
-    <title>Transcript - ${escape(channel.name)}</title>
+    <title>Transcript - ${escape(ticketName)}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
@@ -159,8 +159,8 @@ module.exports = {
     <div class="title">
         <div class="pill">Awoken Tickets</div>
         <div>
-            <h1>#${escape(channel.name)}</h1>
-            <div class="meta">Transcript generat automat • ${new Date().toLocaleString("ro-RO")}</div>
+            <h1>#${escape(ticketName)}</h1>
+            <div class="meta">Transcript generat automat • ${escape(now)}</div>
         </div>
     </div>
 </header>
@@ -169,30 +169,33 @@ module.exports = {
 
         for (const m of messages) {
             const time = new Date(m.createdTimestamp).toLocaleString("ro-RO");
-            const authorTag = escape(m.author.tag);
-            const avatar = m.author.displayAvatarURL({ size: 64, extension: "png" });
+            const content = m.content ? escape(m.content) : "";
 
             html += `
     <article class="msg">
         <div class="avatar">
-            <img src="${avatar}" alt="${authorTag}" />
+            <img src="${m.author.displayAvatarURL({ size: 64 })}" alt="${escape(m.author.tag)}" />
         </div>
         <div class="content-wrapper">
             <div class="author-line">
-                <div class="author">${authorTag}</div>
+                <div class="author">${escape(m.author.tag)}</div>
                 <div class="time">${time}</div>
             </div>
-            <div class="content">${escape(m.content || "")}</div>
+            <div class="content">${content}</div>
 `;
 
             if (m.attachments.size > 0) {
                 m.attachments.forEach(att => {
-                    html += `<div class="attach">📎 Atașament: <a href="${att.url}">${att.url}</a></div>`;
+                    html += `
+            <div class="attach">📎 Attachment: <a href="${att.url}">${att.url}</a></div>
+`;
                 });
             }
 
             if (m.embeds.length > 0) {
-                html += `<div class="embed-note">📘 Conținut embed inclus (nu poate fi redat complet aici).</div>`;
+                html += `
+            <div class="embed-note">📘 Embed content included</div>
+`;
             }
 
             html += `
@@ -204,7 +207,7 @@ module.exports = {
         html += `
 </main>
 <footer>
-    Awoken Bot • Transcript HTML
+    Generated automatically for Awoken Staff • ${escape(ticketName)}
 </footer>
 </body>
 </html>`;

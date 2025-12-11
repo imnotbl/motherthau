@@ -1,66 +1,74 @@
 // utils/githubUploader.js
-// Urcă transcriptul ca fișier HTML în repo-ul GitHub Pages (motherthau)
-
 const axios = require("axios");
 
-const OWNER = process.env.GH_PAGES_OWNER || "imnotbl";
-const REPO = process.env.GH_PAGES_REPO || "motherthau";
-const BRANCH = process.env.GH_PAGES_BRANCH || "gh-pages";
-const DIR = process.env.GH_PAGES_DIR || "transcripts";
-const TOKEN = process.env.GH_TOKEN;
+const OWNER = "imnotbl";
+const REPO = "awoken-transcript";
+const BRANCH = "main"; // dacă repo-ul tău e pe "master", schimbă aici în "master"
 
-// helper – ia SHA dacă fișierul există deja
-async function getFileSha(path) {
-    const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(path)}?ref=${BRANCH}`;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
-    try {
-        const res = await axios.get(url, {
-            headers: {
-                Authorization: `Bearer ${TOKEN}`,
-                "User-Agent": "awoken-bot"
-            }
-        });
-
-        return res.data.sha;
-    } catch (err) {
-        if (err.response && err.response.status === 404) return null;
-        console.error("GitHub getFileSha error:", err.response?.data || err.message);
-        throw err;
-    }
+if (!GITHUB_TOKEN) {
+    console.warn("[GitHubUploader] ATENȚIE: GITHUB_TOKEN nu este setat în variabilele de mediu!");
 }
 
-// upload principal
+/**
+ * Upload / update transcript HTML în repo-ul GitHub.
+ * @param {string} html - conținutul HTML complet al transcriptului
+ * @param {string} fileName - ex: "1448786751643582716.html"
+ * @returns {Promise<string>} - URL-ul public al transcriptului pe GitHub Pages
+ */
 async function uploadTranscript(html, fileName) {
-    if (!TOKEN) {
-        throw new Error("GH_TOKEN lipsă în environment (Railway Variables).");
+    if (!GITHUB_TOKEN) {
+        throw new Error("GITHUB_TOKEN nu este setat în environment (Railway).");
     }
 
-    const relPath = DIR ? `${DIR}/${fileName}` : fileName;
-    const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(relPath)}`;
+    const path = `transcripts/${fileName}`; // NU url-encode, GitHub vrea / nu %2F
+    const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`;
 
-    const contentB64 = Buffer.from(html, "utf8").toString("base64");
-    const existingSha = await getFileSha(relPath);
+    const content = Buffer.from(html, "utf8").toString("base64");
 
+    const headers = {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        "User-Agent": "awoken-bot"
+    };
+
+    let sha = null;
+
+    // 1. Verificăm dacă fișierul există deja (ca să luăm SHA pentru update)
+    try {
+        const getRes = await axios.get(apiUrl, { headers });
+        sha = getRes.data.sha;
+    } catch (err) {
+        if (err.response && err.response.status === 404) {
+            sha = null; // fișier nou, e ok
+        } else {
+            console.error("Eroare la GET GitHub contents:", err.response?.data || err.message);
+            throw err;
+        }
+    }
+
+    // 2. PUT: create sau update
     const body = {
-        message: `Update transcript ${fileName}`,
-        content: contentB64,
+        message: `${sha ? "Update" : "Add"} transcript ${fileName}`,
+        content,
         branch: BRANCH
     };
 
-    if (existingSha) body.sha = existingSha;
+    if (sha) body.sha = sha;
 
-    await axios.put(url, body, {
-        headers: {
-            Authorization: `Bearer ${TOKEN}`,
-            "User-Agent": "awoken-bot",
-            Accept: "application/vnd.github+json"
-        }
-    });
+    try {
+        await axios.put(apiUrl, body, { headers });
+    } catch (err) {
+        console.error("Eroare la PUT GitHub contents:", err.response?.data || err.message);
+        throw err;
+    }
 
-    // URL public al transcriptului (GitHub Pages)
-    const base = `https://${OWNER}.github.io/${REPO}`;
-    const finalUrl = DIR ? `${base}/${DIR}/${fileName}` : `${base}/${fileName}`;
-    return finalUrl;
+    // 3. Returnăm link-ul public de GitHub Pages
+    const publicUrl = `https://${OWNER}.github.io/${REPO}/${path}`;
+    return publicUrl;
 }
 
-module.exports = { uploadTranscript };
+module.exports = {
+    uploadTranscript
+};
