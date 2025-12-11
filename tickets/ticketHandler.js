@@ -6,11 +6,11 @@ const {
     EmbedBuilder
 } = require("discord.js");
 
-const DB = require("../../utils/db");
-const perms = require("../../utils/permissions");
-const ticketPerms = require("../../utils/ticketPermissions");
+const DB = require("../utils/db");
+const perms = require("../utils/permissions");
+const ticketPerms = require("../utils/ticketPermissions");
 const transcriptSys = require("./transcriptSystem");
-const catbox = require("../../utils/catbox");
+const catbox = require("../utils/catbox");
 const fs = require("fs");
 
 const LOG_CHANNEL = "1447896638965415956";
