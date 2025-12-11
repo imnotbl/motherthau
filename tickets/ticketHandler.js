@@ -93,90 +93,90 @@ module.exports = (client) => {
             };
 
             // =====================================================
-            // CLAIM
-            // =====================================================
-            if (interaction.customId === "claim_ticket") {
+// CLAIM
+// =====================================================
+if (interaction.customId === "claim_ticket") {
 
-                if (!perms.isTier1(member) && !perms.isTier2(member)) {
-                    return interaction.reply({ content: "Nu ai permisiune.", ephemeral: true });
-                }
+    if (!perms.isTier1(member) && !perms.isTier2(member)) {
+        return interaction.reply({ content: "Nu ai permisiune.", ephemeral: true });
+    }
 
-                ticket.claimedBy = member.id;
+    ticket.claimedBy = member.id;
 
-                // Credităm stafful doar prima dată
-                if (!ticket.credited) {
-                    await DB.incrementStaffTickets(member.id);
-                    ticket.credited = true;
-                }
+    // Credităm stafful doar prima dată
+    if (!ticket.credited) {
+        await DB.incrementStaffTickets(member.id);
+        ticket.credited = true;
+    }
 
-                await ticket.save?.();
+    await ticket.save?.();
 
-                ticketPerms.applyClaim(
-                    channel,
-                    member.id,
-                    ticket.userId,
-                    perms.roles.tier1,
-                    perms.roles.tier2
-                );
+    ticketPerms.applyClaim(
+        channel,
+        member.id,
+        ticket.userId,
+        perms.roles.tier1,
+        perms.roles.tier2
+    );
 
-                const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("unclaim_ticket").setLabel("Unclaim").setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId("close_ticket").setLabel("Close").setStyle(ButtonStyle.Danger)
-                );
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("unclaim_ticket").setLabel("Unclaim").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("close_ticket").setLabel("Close").setStyle(ButtonStyle.Danger)
+    );
 
-                await interaction.reply({
-                    embeds: [
-                        new EmbedBuilder()
-                            .setColor("Green")
-                            .setDescription(`📌 Ticket revendicat de <@${member.id}>`)
-                    ],
-                    ephemeral: true
-                });
+    const msg = await fetchMainMessage();
+    if (msg) await msg.edit({ components: [row] });
 
-                const msg = await fetchMainMessage();
-                if (msg) await msg.edit({ components: [row] });
+    // 🔥 PUBLIC MESSAGE
+    await channel.send({
+        embeds: [
+            new EmbedBuilder()
+                .setColor("Green")
+                .setDescription(`📌 Ticket revendicat de <@${member.id}>`)
+        ]
+    });
 
-                return;
-            }
+    return;
+}
 
-            // =====================================================
-            // UNCLAIM
-            // =====================================================
-            if (interaction.customId === "unclaim_ticket") {
+// =====================================================
+// UNCLAIM
+// =====================================================
+if (interaction.customId === "unclaim_ticket") {
 
-                if (ticket.claimedBy !== member.id && !perms.isTier2(member)) {
-                    return interaction.reply({ content: "Nu poți unclaim.", ephemeral: true });
-                }
+    if (ticket.claimedBy !== member.id && !perms.isTier2(member)) {
+        return interaction.reply({ content: "Nu poți unclaim.", ephemeral: true });
+    }
 
-                ticket.claimedBy = null;
-                await ticket.save?.();
+    ticket.claimedBy = null;
+    await ticket.save?.();
 
-                ticketPerms.applyInitialPermissions(
-                    channel,
-                    ticket.userId,
-                    perms.roles.tier1,
-                    perms.roles.tier2
-                );
+    ticketPerms.applyInitialPermissions(
+        channel,
+        ticket.userId,
+        perms.roles.tier1,
+        perms.roles.tier2
+    );
 
-                const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("claim_ticket").setLabel("Claim").setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId("close_ticket").setLabel("Close").setStyle(ButtonStyle.Danger)
-                );
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("claim_ticket").setLabel("Claim").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("close_ticket").setLabel("Close").setStyle(ButtonStyle.Danger)
+    );
 
-                await interaction.reply({
-                    embeds: [
-                        new EmbedBuilder()
-                            .setColor("Orange")
-                            .setDescription(`ℹ️ <@${member.id}> a dat unclaim.`)
-                    ],
-                    ephemeral: true
-                });
+    const msg = await fetchMainMessage();
+    if (msg) await msg.edit({ components: [row] });
 
-                const msg = await fetchMainMessage();
-                if (msg) await msg.edit({ components: [row] });
+    // 🔥 PUBLIC MESSAGE
+    await channel.send({
+        embeds: [
+            new EmbedBuilder()
+                .setColor("Orange")
+                .setDescription(`ℹ️ <@${member.id}> a dat unclaim.`)
+        ]
+    });
 
-                return;
-            }
+    return;
+}
 
             // =====================================================
             // CLOSE STEP 1
