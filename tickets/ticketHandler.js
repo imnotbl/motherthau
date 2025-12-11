@@ -13,15 +13,15 @@ const ticketPerms = require("../utils/ticketPermissions");
 const transcriptSys = require("./transcriptSystem");
 const githubUploader = require("../utils/githubUploader");
 
-const LOG_CHANNEL = "1447896638965415956";  // canal log tichete
-const STAFF_ROLE = "1447684240966815977";   // rol staff
+const LOG_CHANNEL = "1447896638965415956";
+const STAFF_ROLE = "1447684240966815977";
 
 module.exports = (client) => {
 
     client.on("interactionCreate", async (interaction) => {
 
         // =====================================================
-        // 🎫 CREATE TICKET (SELECT MENU)
+        // 🎫 CREATE TICKET
         // =====================================================
         if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
 
@@ -44,6 +44,7 @@ module.exports = (client) => {
                 topic: `Ticket creat de ${user.tag} | Tip: ${option}`
             });
 
+            // permissions
             ticketPerms.applyInitialPermissions(
                 channel,
                 user.id,
@@ -51,6 +52,7 @@ module.exports = (client) => {
                 perms.roles.tier2
             );
 
+            // create DB entry
             await DB.addTicket(channel.id, user.id);
 
             const embed = new EmbedBuilder()
@@ -63,11 +65,14 @@ module.exports = (client) => {
                 new ButtonBuilder().setCustomId("close_ticket").setLabel("Close").setStyle(ButtonStyle.Danger)
             );
 
-            await channel.send({
+            // ➜ salvăm mesajul principal
+            const sent = await channel.send({
                 content: `<@&${STAFF_ROLE}> <@${user.id}>`,
                 embeds: [embed],
                 components: [row]
             });
+
+            await DB.setTicketMessage(channel.id, sent.id);
 
             return interaction.reply({ content: "🎟 Tichet deschis!", ephemeral: true });
         }
@@ -83,6 +88,10 @@ module.exports = (client) => {
         DB.getTicket(channel.id, async (ticket) => {
             if (!ticket) return;
 
+            const fetchMainMessage = async () => {
+                return await channel.messages.fetch(ticket.messageId).catch(() => null);
+            };
+
             // =====================================================
             // CLAIM
             // =====================================================
@@ -93,7 +102,14 @@ module.exports = (client) => {
                 }
 
                 ticket.claimedBy = member.id;
-                await ticket.save?.(); // în caz că e document Mongoose
+
+                // Credităm stafful doar prima dată
+                if (!ticket.credited) {
+                    await DB.incrementStaffTickets(member.id);
+                    ticket.credited = true;
+                }
+
+                await ticket.save?.();
 
                 ticketPerms.applyClaim(
                     channel,
@@ -117,7 +133,7 @@ module.exports = (client) => {
                     ephemeral: true
                 });
 
-                const msg = (await channel.messages.fetch({ limit: 1 })).first();
+                const msg = await fetchMainMessage();
                 if (msg) await msg.edit({ components: [row] });
 
                 return;
@@ -156,14 +172,14 @@ module.exports = (client) => {
                     ephemeral: true
                 });
 
-                const msg = (await channel.messages.fetch({ limit: 1 })).first();
+                const msg = await fetchMainMessage();
                 if (msg) await msg.edit({ components: [row] });
 
                 return;
             }
 
             // =====================================================
-            // CLOSE (STEP 1)
+            // CLOSE STEP 1
             // =====================================================
             if (interaction.customId === "close_ticket") {
 
@@ -198,37 +214,36 @@ module.exports = (client) => {
             }
 
             // =====================================================
-            // CLOSE — FINAL + TRANSCRIPT PREMIUM (GitHub Pages)
+            // CLOSE — FINAL + TRANSCRIPT GH-PAGES
             // =====================================================
             if (interaction.customId === "confirm_close") {
+
                 try {
-                    // 1) generăm transcript HTML
+                    // 1. Generăm transcript
                     const html = await transcriptSys.generateTranscript(channel);
                     const fileName = `${channel.id}.html`;
 
-                    // 2) upload pe GitHub (awoken-transcript / transcripts/...)
+                    // 2. Upload pe GitHub Pages repo
                     const url = await githubUploader.uploadTranscript(html, fileName);
 
-                    // 3) log în canalul de staff
-                    const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL);
-                    if (logChannel) {
-                        const logEmbed = new EmbedBuilder()
-                            .setColor("Blurple")
-                            .setTitle("📄 Ticket închis")
-                            .addFields(
-                                { name: "User", value: `<@${ticket.userId}>`, inline: true },
-                                {
-                                    name: "Staff",
-                                    value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "Nerevendicat",
-                                    inline: true
-                                },
-                                { name: "Transcript", value: `[Deschide pagina](${url})` }
-                            );
-
-                        logChannel.send({ embeds: [logEmbed] });
+                    // 3. Log
+                    const log = interaction.guild.channels.cache.get(LOG_CHANNEL);
+                    if (log) {
+                        log.send({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setColor("Blurple")
+                                    .setTitle("📄 Ticket închis")
+                                    .addFields(
+                                        { name: "User", value: `<@${ticket.userId}>`, inline: true },
+                                        { name: "Staff", value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "Nerevendicat", inline: true },
+                                        { name: "Transcript", value: `[Vezi transcriptul aici](${url})` }
+                                    )
+                            ]
+                        });
                     }
 
-                    // 4) DM la user cu link frumos
+                    // 4. DM user
                     try {
                         const usr = await interaction.guild.members.fetch(ticket.userId);
                         await usr.send({
@@ -239,22 +254,18 @@ module.exports = (client) => {
                                     .setDescription(`Poți vedea transcriptul tău aici:\n${url}`)
                             ]
                         });
-                    } catch {
-                        // ignorăm dacă are DM-urile închise
-                    }
+                    } catch {}
 
                 } catch (err) {
                     console.error("Eroare generare / upload transcript:", err);
-                    await interaction.reply({
+                    return interaction.reply({
                         content: "❌ A apărut o eroare la generarea transcriptului.",
                         ephemeral: true
                     });
-                    return;
                 }
 
-                // 5) ștergem ticketul din DB + canalul
                 await DB.deleteTicket(channel.id);
-                await channel.delete().catch(() => { });
+                await channel.delete().catch(() => {});
 
                 return;
             }
