@@ -9,7 +9,7 @@ const {
 const DB = require("../utils/db");
 const perms = require("../utils/permissions");
 const ticketPerms = require("../utils/ticketPermissions");
-const transcriptSys = require("./transcriptSystem");
+const transcriptSys = require("./transcriptSystem"); // <-- PREMIUM transcript
 const catbox = require("../utils/catbox");
 const fs = require("fs");
 
@@ -51,7 +51,7 @@ module.exports = (client) => {
                 perms.roles.tier2
             );
 
-            await DB.addTicket(channel.id, user.id); // credited = false by default
+            await DB.addTicket(channel.id, user.id);
 
             const embed = new EmbedBuilder()
                 .setColor("Purple")
@@ -94,7 +94,6 @@ module.exports = (client) => {
 
                 ticket.claimedBy = member.id;
 
-                // 👉 dacă ticketul încă nu a fost creditat → credităm staff-ul
                 if (!ticket.credited) {
                     await DB.incrementStaffTickets(member.id);
                     ticket.credited = true;
@@ -118,7 +117,7 @@ module.exports = (client) => {
                 });
 
                 const msg = (await channel.messages.fetch({ limit: 1 })).first();
-                return msg.edit({ components: [row] });
+                return msg?.edit({ components: [row] });
             }
 
             // =====================================================
@@ -149,11 +148,11 @@ module.exports = (client) => {
                 });
 
                 const msg = (await channel.messages.fetch({ limit: 1 })).first();
-                return msg.edit({ components: [row] });
+                return msg?.edit({ components: [row] });
             }
 
             // =====================================================
-            // CLOSE (STEP 1)
+            // CLOSE STEP 1
             // =====================================================
             if (interaction.customId === "close_ticket") {
 
@@ -188,20 +187,33 @@ module.exports = (client) => {
             }
 
             // =====================================================
-            // CLOSE — FINAL
+            // CLOSE FINAL — cu TRANSCRIPT PREMIUM
             // =====================================================
             if (interaction.customId === "confirm_close") {
 
-                // transcript
+                // -------------------------------
+                // 1️⃣ Generare transcript HTML
+                // -------------------------------
                 const html = await transcriptSys.generateTranscript(channel);
 
-                if (!fs.existsSync("./transcripts")) fs.mkdirSync("./transcripts");
+                if (!fs.existsSync("./transcripts"))
+                    fs.mkdirSync("./transcripts");
+
                 const filePath = `./transcripts/${channel.id}.html`;
                 fs.writeFileSync(filePath, html);
 
+
+                // -------------------------------
+                // 2️⃣ Upload la Catbox (obții link)
+                // -------------------------------
                 const url = await catbox.uploadFile(filePath);
 
+
+                // -------------------------------
+                // 3️⃣ Log pe canalul de staff
+                // -------------------------------
                 const log = interaction.guild.channels.cache.get(LOG_CHANNEL);
+
                 if (log) {
                     log.send({
                         embeds: [
@@ -211,25 +223,38 @@ module.exports = (client) => {
                                 .addFields(
                                     { name: "User", value: `<@${ticket.userId}>`, inline: true },
                                     { name: "Staff", value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "Nerevendicat", inline: true },
-                                    { name: "Transcript", value: `[Descarcă aici](${url})` }
+                                    { name: "Transcript", value: `[Deschide transcript](${url})` }
                                 )
                         ]
                     });
                 }
 
-                // DM user
+
+                // -------------------------------
+                // 4️⃣ DM către user
+                // -------------------------------
                 try {
                     const usr = await interaction.guild.members.fetch(ticket.userId);
                     usr.send({
                         embeds: [
                             new EmbedBuilder()
                                 .setColor("Purple")
-                                .setDescription(`📄 Transcriptul tău:\n${url}`)
+                                .setTitle("📄 Transcriptul tău este gata")
+                                .setDescription(`Poți vizualiza transcriptul premium aici:\n${url}`)
                         ]
                     });
                 } catch {}
 
+
+                // -------------------------------
+                // 5️⃣ Ștergere ticket din DB
+                // -------------------------------
                 await DB.deleteTicket(channel.id);
+
+
+                // -------------------------------
+                // 6️⃣ Delete channel
+                // -------------------------------
                 await channel.delete();
 
                 return;
