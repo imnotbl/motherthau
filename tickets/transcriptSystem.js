@@ -1,11 +1,10 @@
 // tickets/transcriptSystem.js
+// Generează HTML PREMIUM pentru transcript
+
 const escape = require("escape-html");
 
 module.exports = {
     async generateTranscript(channel) {
-        // ============================
-        // 1. FETCH MESAJ + ORDONARE
-        // ============================
         let messages = [];
         let lastId;
 
@@ -21,30 +20,15 @@ module.exports = {
             lastId = fetched.last().id;
         }
 
-        // cronologic (cel mai vechi -> cel mai nou)
-        messages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+        messages.reverse();
 
-        const guildName = channel.guild?.name || "Unknown Server";
-        const channelName = channel.name;
-        const exportedAt = new Date().toLocaleString("ro-RO");
-
-        // set participanți
-        const participants = new Map();
-        for (const m of messages) {
-            if (!participants.has(m.author.id)) {
-                participants.set(m.author.id, m.author.tag);
-            }
-        }
-
-        // ============================
-        // 2. TEMPLATE HTML PREMIUM
-        // ============================
-        let html = `<!DOCTYPE html>
+        let html = `
+<!DOCTYPE html>
 <html lang="ro">
 <head>
-    <meta charset="UTF-8">
-    <title>Transcript #${escape(channelName)} - ${escape(guildName)}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <title>Transcript - ${escape(channel.name)}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
             color-scheme: dark;
@@ -56,316 +40,172 @@ module.exports = {
             margin: 0;
             padding: 0;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: #0b0b10;
-            color: #dcddde;
+            background: radial-gradient(circle at top left, #3b82f6 0, #020617 55%);
+            color: #e5e7eb;
         }
-        .page {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .header {
+        header {
             position: sticky;
             top: 0;
             z-index: 10;
-            background: linear-gradient(90deg, #4c1d95, #581c87, #1f2937);
-            padding: 16px 32px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.6);
-        }
-        .header-title {
-            font-size: 22px;
-            font-weight: 700;
-            margin: 0 0 4px 0;
+            backdrop-filter: blur(18px);
+            background: linear-gradient(to right, rgba(15,23,42,0.96), rgba(15,23,42,0.85));
+            border-bottom: 1px solid rgba(148,163,184,0.3);
+            padding: 14px 26px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: space-between;
         }
-        .header-title span.channel {
-            color: #e5e7eb;
-        }
-        .header-sub {
-            font-size: 13px;
-            color: #e5e7eb;
-            opacity: 0.9;
-        }
-        .header-tags {
-            margin-top: 8px;
+        header .title {
             display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
+            align-items: center;
+            gap: 12px;
         }
-        .tag {
-            font-size: 11px;
-            padding: 4px 8px;
+        header .pill {
+            padding: 3px 10px;
             border-radius: 999px;
-            background: rgba(15,23,42,0.85);
+            font-size: 11px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
             border: 1px solid rgba(148,163,184,0.5);
             color: #e5e7eb;
         }
-        .content {
-            padding: 20px 0 40px;
-            display: flex;
-            justify-content: center;
+        header h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
         }
-        .chat-container {
-            width: 100%;
-            max-width: 960px;
-            padding: 0 16px;
-        }
-        .system-note {
-            text-align: center;
-            font-size: 12px;
-            color: #9ca3af;
-            margin-bottom: 12px;
-        }
-        .divider {
-            display: flex;
-            align-items: center;
-            margin: 16px 0;
+        header .meta {
             font-size: 12px;
             color: #9ca3af;
         }
-        .divider::before, .divider::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(75,85,99,0.8), transparent);
+        main {
+            max-width: 980px;
+            margin: 20px auto 40px auto;
+            padding: 0 16px 32px 16px;
         }
-        .divider span {
-            margin: 0 10px;
-        }
-        .message {
-            display: grid;
-            grid-template-columns: 42px 1fr;
+        .msg {
+            display: flex;
             gap: 10px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            transition: background 0.15s ease, transform 0.15s ease;
+            padding: 10px 14px;
+            margin-bottom: 6px;
+            border-radius: 10px;
+            background: rgba(15,23,42,0.78);
+            border: 1px solid rgba(30,64,175,0.5);
+            box-shadow: 0 18px 45px rgba(15,23,42,0.8);
         }
-        .message:hover {
-            background: rgba(15,23,42,0.85);
+        .msg:hover {
+            border-color: rgba(59,130,246,0.9);
+            box-shadow: 0 0 0 1px rgba(59,130,246,0.4);
             transform: translateY(-1px);
+            transition: all 120ms ease-out;
         }
         .avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 999px;
-            overflow: hidden;
-            background: #111827;
+            flex-shrink: 0;
         }
         .avatar img {
-            width: 100%;
-            height: 100%;
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
             object-fit: cover;
-            display: block;
+            border: 1px solid rgba(59,130,246,0.6);
         }
-        .msg-header {
+        .content-wrapper {
+            flex: 1;
+            min-width: 0;
+        }
+        .author-line {
             display: flex;
             align-items: baseline;
             gap: 8px;
-            margin-bottom: 2px;
         }
-        .username {
+        .author {
             font-weight: 600;
             font-size: 14px;
-            color: #e5e7eb;
         }
-        .timestamp {
+        .time {
             font-size: 11px;
             color: #9ca3af;
         }
-        .msg-content {
+        .content {
+            margin-top: 4px;
             font-size: 14px;
             white-space: pre-wrap;
             word-wrap: break-word;
         }
-        .msg-content a {
-            color: #60a5fa;
-        }
-        .attachments {
+        .attach, .embed-note {
             margin-top: 6px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .attachment {
             font-size: 12px;
-            color: #9ca3af;
+            color: #bfdbfe;
         }
-        .attachment a {
+        .attach a {
             color: #60a5fa;
+            text-decoration: none;
         }
-        .image-preview {
-            margin-top: 4px;
-            max-width: 340px;
-            border-radius: 8px;
-            border: 1px solid #111827;
-            overflow: hidden;
+        .attach a:hover {
+            text-decoration: underline;
         }
-        .image-preview img {
-            width: 100%;
-            display: block;
-        }
-        .embed-badge {
-            margin-top: 6px;
-            font-size: 11px;
-            color: #a5b4fc;
-        }
-        .footer {
-            text-align: center;
+        footer {
+            max-width: 980px;
+            margin: 0 auto 22px auto;
+            padding: 0 16px;
             font-size: 11px;
             color: #6b7280;
-            padding: 16px 0 24px;
-        }
-        #scrollBottom {
-            position: fixed;
-            right: 18px;
-            bottom: 18px;
-            background: rgba(37,99,235,0.95);
-            color: #e5e7eb;
-            border: none;
-            border-radius: 999px;
-            padding: 8px 14px;
-            font-size: 12px;
-            cursor: pointer;
-            box-shadow: 0 6px 14px rgba(15,23,42,0.7);
-            display: none;
-            align-items: center;
-            gap: 6px;
-        }
-        #scrollBottom span {
-            font-size: 16px;
-            line-height: 1;
-        }
-        @media (max-width: 600px) {
-            .header {
-                padding: 12px 16px;
-            }
-            .header-title {
-                font-size: 18px;
-            }
-            .chat-container {
-                padding: 0 10px;
-            }
+            text-align: right;
         }
     </style>
 </head>
 <body>
-<div class="page">
-    <header class="header">
-        <div class="header-title">
-            <span class="channel">#${escape(channelName)}</span>
-            <span style="opacity:0.75;font-size:13px;">— Transcript</span>
+<header>
+    <div class="title">
+        <div class="pill">Awoken Tickets</div>
+        <div>
+            <h1>#${escape(channel.name)}</h1>
+            <div class="meta">Transcript generat automat • ${new Date().toLocaleString("ro-RO")}</div>
         </div>
-        <div class="header-sub">
-            Server: <strong>${escape(guildName)}</strong> • Exportat la ${escape(exportedAt)}
-        </div>
-        <div class="header-tags">
-            <div class="tag">Mesaje: ${messages.length}</div>
-            <div class="tag">Participanți: ${participants.size}</div>
-        </div>
-    </header>
-
-    <main class="content">
-        <div class="chat-container">
-            <div class="system-note">
-                Acesta este un transcript generat automat. Mesajele pot fi șterse ulterior de pe server,
-                dar vor rămâne salvate aici.
-            </div>
-            <div class="divider"><span>Început conversație</span></div>
+    </div>
+</header>
+<main>
 `;
 
-        // ============================
-        // 3. MESAJ CU MESAJ
-        // ============================
         for (const m of messages) {
             const time = new Date(m.createdTimestamp).toLocaleString("ro-RO");
-            const avatar = m.author.displayAvatarURL({ size: 128, extension: "png" });
-
-            const content = m.content
-                ? escape(m.content).replace(/\n/g, "<br>")
-                : "";
+            const authorTag = escape(m.author.tag);
+            const avatar = m.author.displayAvatarURL({ size: 64, extension: "png" });
 
             html += `
-            <div class="message">
-                <div class="avatar">
-                    <img src="${avatar}" alt="${escape(m.author.tag)}">
-                </div>
-                <div class="msg-body">
-                    <div class="msg-header">
-                        <span class="username">${escape(m.author.tag)}</span>
-                        <span class="timestamp">${escape(time)}</span>
-                    </div>
-                    <div class="msg-content">${content || "<i style='color:#6b7280;'>[fără text]</i>"}</div>
-            `;
-
-            // Attachments
-            if (m.attachments.size > 0) {
-                html += `<div class="attachments">`;
-                m.attachments.forEach(att => {
-                    const safeUrl = escape(att.url);
-                    const fileName = escape(att.name || "attachment");
-                    const isImage = att.contentType && att.contentType.startsWith("image");
-
-                    html += `
-                        <div class="attachment">
-                            📎 <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${fileName}</a>
-                        </div>
-                    `;
-
-                    if (isImage) {
-                        html += `
-                            <div class="image-preview">
-                                <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">
-                                    <img src="${safeUrl}" alt="${fileName}">
-                                </a>
-                            </div>
-                        `;
-                    }
-                });
-                html += `</div>`;
-            }
-
-            // Embeds
-            if (m.embeds && m.embeds.length > 0) {
-                html += `<div class="embed-badge">📘 Embed inclus (conținutul complet este disponibil în Discord).</div>`;
-            }
-
-            html += `
-                </div>
+    <article class="msg">
+        <div class="avatar">
+            <img src="${avatar}" alt="${authorTag}" />
+        </div>
+        <div class="content-wrapper">
+            <div class="author-line">
+                <div class="author">${authorTag}</div>
+                <div class="time">${time}</div>
             </div>
-            `;
+            <div class="content">${escape(m.content || "")}</div>
+`;
+
+            if (m.attachments.size > 0) {
+                m.attachments.forEach(att => {
+                    html += `<div class="attach">📎 Atașament: <a href="${att.url}">${att.url}</a></div>`;
+                });
+            }
+
+            if (m.embeds.length > 0) {
+                html += `<div class="embed-note">📘 Conținut embed inclus (nu poate fi redat complet aici).</div>`;
+            }
+
+            html += `
+        </div>
+    </article>
+`;
         }
 
-        // ============================
-        // 4. FOOTER + JS PENTRU SCROLL
-        // ============================
         html += `
-            <div class="divider"><span>Sfârșit conversație</span></div>
-        </div>
-    </main>
-
-    <footer class="footer">
-        Transcript generat pentru #${escape(channelName)} • ${escape(guildName)}
-    </footer>
-</div>
-
-<button id="scrollBottom">
-    <span>↓</span> Jos de tot
-</button>
-
-<script>
-    const btn = document.getElementById('scrollBottom');
-
-    window.addEventListener('scroll', () => {
-        const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 200;
-        btn.style.display = nearBottom ? 'none' : 'flex';
-    });
-
-    btn.addEventListener('click', () => {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    });
-</script>
+</main>
+<footer>
+    Awoken Bot • Transcript HTML
+</footer>
 </body>
 </html>`;
 

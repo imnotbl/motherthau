@@ -9,9 +9,8 @@ const {
 const DB = require("../utils/db");
 const perms = require("../utils/permissions");
 const ticketPerms = require("../utils/ticketPermissions");
-const transcriptSys = require("./transcriptSystem"); // <-- PREMIUM transcript
-const catbox = require("../utils/catbox");
-const fs = require("fs");
+const transcriptSys = require("./transcriptSystem");
+const githubUploader = require("../utils/githubUploader"); // 👈 nou
 
 const LOG_CHANNEL = "1447896638965415956";
 const STAFF_ROLE = "1447684240966815977";
@@ -51,7 +50,7 @@ module.exports = (client) => {
                 perms.roles.tier2
             );
 
-            await DB.addTicket(channel.id, user.id);
+            await DB.addTicket(channel.id, user.id); // claimedBy = null, credited = runtime-only
 
             const embed = new EmbedBuilder()
                 .setColor("Purple")
@@ -94,12 +93,13 @@ module.exports = (client) => {
 
                 ticket.claimedBy = member.id;
 
+                // credităm staff-ul doar prima dată
                 if (!ticket.credited) {
                     await DB.incrementStaffTickets(member.id);
-                    ticket.credited = true;
+                    ticket.credited = true; // DOAR în runtime, e suficient
                 }
 
-                await ticket.save();
+                await ticket.save?.(); // dacă e document mongoose, are .save()
 
                 ticketPerms.applyClaim(channel, member.id, ticket.userId, perms.roles.tier1, perms.roles.tier2);
 
@@ -117,7 +117,8 @@ module.exports = (client) => {
                 });
 
                 const msg = (await channel.messages.fetch({ limit: 1 })).first();
-                return msg?.edit({ components: [row] });
+                if (msg) await msg.edit({ components: [row] });
+                return;
             }
 
             // =====================================================
@@ -130,7 +131,7 @@ module.exports = (client) => {
                 }
 
                 ticket.claimedBy = null;
-                await ticket.save();
+                await ticket.save?.();
 
                 ticketPerms.applyInitialPermissions(channel, ticket.userId, perms.roles.tier1, perms.roles.tier2);
 
@@ -148,11 +149,12 @@ module.exports = (client) => {
                 });
 
                 const msg = (await channel.messages.fetch({ limit: 1 })).first();
-                return msg?.edit({ components: [row] });
+                if (msg) await msg.edit({ components: [row] });
+                return;
             }
 
             // =====================================================
-            // CLOSE STEP 1
+            // CLOSE (STEP 1)
             // =====================================================
             if (interaction.customId === "close_ticket") {
 
@@ -187,75 +189,57 @@ module.exports = (client) => {
             }
 
             // =====================================================
-            // CLOSE FINAL — cu TRANSCRIPT PREMIUM
+            // CLOSE — FINAL (TRANSCRIPT + GITHUB PAGES)
             // =====================================================
             if (interaction.customId === "confirm_close") {
 
-                // -------------------------------
-                // 1️⃣ Generare transcript HTML
-                // -------------------------------
-                const html = await transcriptSys.generateTranscript(channel);
+                try {
+                    // 1. Generăm HTML
+                    const html = await transcriptSys.generateTranscript(channel);
+                    const fileName = `${channel.id}.html`;
 
-                if (!fs.existsSync("./transcripts"))
-                    fs.mkdirSync("./transcripts");
+                    // 2. Upload la GitHub Pages
+                    const url = await githubUploader.uploadTranscript(html, fileName);
 
-                const filePath = `./transcripts/${channel.id}.html`;
-                fs.writeFileSync(filePath, html);
+                    // 3. Log în canalul de loguri
+                    const log = interaction.guild.channels.cache.get(LOG_CHANNEL);
+                    if (log) {
+                        await log.send({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setColor("Blurple")
+                                    .setTitle("📄 Ticket închis")
+                                    .addFields(
+                                        { name: "User", value: `<@${ticket.userId}>`, inline: true },
+                                        { name: "Staff", value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "Nerevendicat", inline: true },
+                                        { name: "Transcript", value: `[Deschide transcriptul](${url})` }
+                                    )
+                            ]
+                        });
+                    }
 
+                    // 4. DM user cu link direct
+                    try {
+                        const usr = await interaction.guild.members.fetch(ticket.userId);
+                        await usr.send({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setColor("Purple")
+                                    .setTitle("🎫 Ticket închis")
+                                    .setDescription(`Transcriptul complet al ticketului tău:\n[📄 Deschide transcriptul](${url})`)
+                            ]
+                        });
+                    } catch {
+                        // userul are DM-urile închise sau nu mai e pe server
+                    }
 
-                // -------------------------------
-                // 2️⃣ Upload la Catbox (obții link)
-                // -------------------------------
-                const url = await catbox.uploadFile(filePath);
-
-
-                // -------------------------------
-                // 3️⃣ Log pe canalul de staff
-                // -------------------------------
-                const log = interaction.guild.channels.cache.get(LOG_CHANNEL);
-
-                if (log) {
-                    log.send({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor("Blurple")
-                                .setTitle("📄 Ticket închis")
-                                .addFields(
-                                    { name: "User", value: `<@${ticket.userId}>`, inline: true },
-                                    { name: "Staff", value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "Nerevendicat", inline: true },
-                                    { name: "Transcript", value: `[Deschide transcript](${url})` }
-                                )
-                        ]
-                    });
+                } catch (err) {
+                    console.error("Eroare generare / upload transcript:", err);
                 }
 
-
-                // -------------------------------
-                // 4️⃣ DM către user
-                // -------------------------------
-                try {
-                    const usr = await interaction.guild.members.fetch(ticket.userId);
-                    usr.send({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor("Purple")
-                                .setTitle("📄 Transcriptul tău este gata")
-                                .setDescription(`Poți vizualiza transcriptul premium aici:\n${url}`)
-                        ]
-                    });
-                } catch {}
-
-
-                // -------------------------------
-                // 5️⃣ Ștergere ticket din DB
-                // -------------------------------
+                // Ștergem ticket-ul din DB + canalul
                 await DB.deleteTicket(channel.id);
-
-
-                // -------------------------------
-                // 6️⃣ Delete channel
-                // -------------------------------
-                await channel.delete();
+                await channel.delete().catch(() => {});
 
                 return;
             }
