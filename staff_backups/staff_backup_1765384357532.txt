@@ -1,0 +1,50 @@
+=== RAPORT STAFF — BACKUP ÎNAINTE DE RESET ===
+
+Staff: 1295796421957517405
+ • Warn-uri date: 2
+ • Mute-uri date: 3
+ • Ban-uri date: 1
+ • Tickete create: 2
+ • Mesaje trimise: 8
+ • Minute voice: 0
+----------------------------------------
+Staff: 1187783824969584765
+ • Warn-uri date: 0
+ • Mute-uri date: 0
+ • Ban-uri date: 0
+ • Tickete create: 2
+ • Mesaje trimise: 1
+ • Minute voice: 0
+----------------------------------------
+Staff: 890968374564249630
+ • Warn-uri date: 0
+ • Mute-uri date: 0
+ • Ban-uri date: 0
+ • Tickete create: 0
+ • Mesaje trimise: 31
+ • Minute voice: 0
+----------------------------------------
+Staff: 1447716042003710054
+ • Warn-uri date: 0
+ • Mute-uri date: 0
+ • Ban-uri date: 0
+ • Tickete create: 0
+ • Mesaje trimise: 0
+ • Minute voice: 0
+----------------------------------------
+Staff: 1265451034927693905
+ • Warn-uri date: 0
+ • Mute-uri date: 0
+ • Ban-uri date: 0
+ • Tickete create: 0
+ • Mesaje trimise: 0
+ • Minute voice: 0
+----------------------------------------
+Staff: 1315311813583437847
+ • Warn-uri date: 0
+ • Mute-uri date: 0
+ • Ban-uri date: 0
+ • Tickete create: 0
+ • Mesaje trimise: 0
+ • Minute voice: 0
+----------------------------------------
