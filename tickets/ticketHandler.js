@@ -118,15 +118,16 @@ module.exports = (client) => {
 
             await DB.addStaffRating(staffId, interaction.user.id, rating);
 
-            const disabledRow = new ActionRowBuilder().addComponents(
-                [1,2,3,4,5].map(n =>
-                    new ButtonBuilder()
-                        .setCustomId("disabled")
-                        .setLabel("⭐".repeat(n))
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true)
-                )
-            );
+        const disabledRow = new ActionRowBuilder().addComponents(
+            [1, 2, 3, 4, 5].map(n =>
+            new ButtonBuilder()
+            .setCustomId(`disabled_${n}`) // ✅ UNIC
+            .setLabel("⭐".repeat(n))
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true)
+    )
+);
+
 
             await interaction.update({
                 embeds: [
