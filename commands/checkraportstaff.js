@@ -1,10 +1,10 @@
 const { EmbedBuilder } = require("discord.js");
-const db = require("../utils/db");
+const DB = require("../utils/db");
 
 module.exports = {
     name: "checkraportstaff",
-    description: "Afișează rapoartele membrilor staff (FULL ACCESS STAFF SERVER ONLY)",
-    async execute(message, args, client) {
+    description: "Afișează rapoartele membrilor staff",
+    async execute(message) {
 
         const ALLOWED_ROLES = [
             "1447946562184548414",
@@ -13,64 +13,49 @@ module.exports = {
         ];
 
         if (!message.member.roles.cache.some(r => ALLOWED_ROLES.includes(r.id))) {
-            return message.reply("❌ Nu ai acces la această comandă.");
+            return message.reply("❌ Nu ai acces.");
         }
 
-        db.getAllStaffReports(async (rows) => {
+        DB.getAllStaffReports(async (rows) => {
 
             if (!rows || rows.length === 0) {
-                return message.channel.send("📭 Nu există date în rapoartele staff.");
+                return message.channel.send("📭 Nu există date.");
             }
 
-            // ---------------------------------------------------------
-            // Luăm mesajele reale din canalul staff pentru fiecare user
-            // ---------------------------------------------------------
-            for (let row of rows) {
-                await new Promise(resolve => {
-                    db.getMessageCount(row.staffId, (msgCount) => {
-                        row.realMessages = msgCount;
-                        resolve();
-                    });
-                });
+            for (const row of rows) {
+                row.realMessages = await new Promise(r =>
+                    DB.getMessageCount(row.staffId, r)
+                );
 
-                // 🔥 Convertim voice minutes în ore + minute
-                const totalMinutes = row.voiceMinutes || 0;
-                const hours = Math.floor(totalMinutes / 60);
-                const minutes = totalMinutes % 60;
-
-                row.voiceFormatted = `${hours}h ${minutes}m`;
+                const h = Math.floor((row.voiceMinutes || 0) / 60);
+                const m = (row.voiceMinutes || 0) % 60;
+                row.voiceFormatted = `${h}h ${m}m`;
             }
 
-            // sortăm după mesaje reale
             rows.sort((a, b) => b.realMessages - a.realMessages);
 
-            // ---------------------------------------------------------
-            // Construim tabelul
-            // ---------------------------------------------------------
-            let table = "**👥 RAPORT STAFF – TABEL ACTIVITATE**\n";
-            table += "```ansi\n";
+            let table = "**👥 RAPORT STAFF – ACTIVITATE**\n```ansi\n";
             table += "USER               | WRN | MUT | BAN | TICK | MSG | VOICE\n";
             table += "------------------------------------------------------------\n";
 
-            for (const row of rows) {
-                const user = message.guild.members.cache.get(row.staffId);
+            for (const r of rows) {
+                const member = message.guild.members.cache.get(r.staffId);
+                const name = member ? member.user.username : r.staffId;
 
-                const userName = user ? user.user.username : row.staffId;
-
-                table += `${userName.padEnd(18)} | `
-                      + `${String(row.warnsGiven).padEnd(3)} | `
-                      + `${String(row.mutesGiven).padEnd(3)} | `
-                      + `${String(row.bansGiven).padEnd(3)} | `
-                      + `${String(row.ticketsCreated).padEnd(4)} | `
-                      + `${String(row.realMessages).padEnd(3)} | `
-                      + `${row.voiceFormatted.padEnd(7)}\n`;
+                table += `${name.padEnd(18)} | `
+                    + `${String(r.warnsGiven).padEnd(3)} | `
+                    + `${String(r.mutesGiven).padEnd(3)} | `
+                    + `${String(r.bansGiven).padEnd(3)} | `
+                    + `${String(r.ticketsClaimed || 0).padEnd(4)} | `
+                    + `${String(r.realMessages).padEnd(3)} | `
+                    + `${r.voiceFormatted}\n`;
             }
 
             table += "```";
 
             const embed = new EmbedBuilder()
                 .setColor("Blurple")
-                .setTitle("📊 Raport Staff – Activitate Completă")
+                .setTitle("📊 Raport Staff – Activitate")
                 .setDescription(table)
                 .setFooter({ text: "Awoken Staff System" })
                 .setTimestamp();
