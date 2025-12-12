@@ -1,7 +1,7 @@
 const axios = require("axios");
 
-const OWNER = "imnotbl";
-const REPO = "awoken-transcript";
+const OWNER = "imnotbl"; // username GitHub
+const REPO = "awoken-transcript"; // repo GitHub Pages
 const BRANCH = "main";
 const TOKEN = process.env.GITHUB_TOKEN;
 
@@ -16,17 +16,22 @@ const api = axios.create({
 });
 
 async function uploadTranscript(html, fileName) {
-    if (!TOKEN) throw new Error("GITHUB_TOKEN lipsă");
+    if (!TOKEN) {
+        throw new Error("GITHUB_TOKEN nu este setat.");
+    }
 
     const path = `transcripts/${fileName}`;
-    const content = Buffer.from(html).toString("base64");
+    const content = Buffer.from(html, "utf8").toString("base64");
 
-    let sha;
+    let sha = null;
+
     try {
         const res = await api.get(`/repos/${OWNER}/${REPO}/contents/${path}`);
         sha = res.data.sha;
-    } catch (e) {
-        if (e.response?.status !== 404) throw e;
+    } catch (err) {
+        if (err.response?.status !== 404) {
+            throw err;
+        }
     }
 
     await api.put(`/repos/${OWNER}/${REPO}/contents/${path}`, {
@@ -36,6 +41,7 @@ async function uploadTranscript(html, fileName) {
         ...(sha && { sha })
     });
 
+    // 🔥 LINK PUBLIC GITHUB PAGES
     return `https://${OWNER}.github.io/${REPO}/${path}`;
 }
 
