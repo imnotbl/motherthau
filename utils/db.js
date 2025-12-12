@@ -73,16 +73,6 @@ const Ban = mongoose.model("Ban", new mongoose.Schema({
     timestamp: Number
 }));
 
-// SPECIAL STAFF WARNS
-const SpecialWarn = mongoose.model("SpecialWarn", new mongoose.Schema({
-    id: Number,
-    userId: String,
-    moderatorId: String,
-    reason: String,
-    timestamp: Number,
-    expiresAt: Number
-}));
-
 // STAFF REPORTS
 const StaffReport = mongoose.model("StaffReport", new mongoose.Schema({
     staffId: { type: String, unique: true },
@@ -95,12 +85,13 @@ const StaffReport = mongoose.model("StaffReport", new mongoose.Schema({
     voiceMinutes: { type: Number, default: 0 }
 }));
 
-// TICKETS
+// TICKETS  ✅ messageId ADĂUGAT
 const Ticket = mongoose.model("Ticket", new mongoose.Schema({
     id: Number,
     channelId: String,
     userId: String,
     claimedBy: String,
+    messageId: String,
     createdAt: Number
 }));
 
@@ -218,8 +209,16 @@ module.exports = {
             channelId,
             userId,
             claimedBy: null,
+            messageId: null,
             createdAt: Date.now()
         });
+    },
+
+    async setTicketMessage(channelId, messageId) {
+        return Ticket.updateOne(
+            { channelId },
+            { $set: { messageId } }
+        );
     },
 
     async getTicket(channelId) {
@@ -252,9 +251,9 @@ module.exports = {
         const avg = rows.reduce((a, b) => a + b.rating, 0) / rows.length;
         return avg.toFixed(2);
     },
-    async deleteStaffRatings(staffId) {
-    const result = await StaffRating.deleteMany({ staffId });
-    return result.deletedCount || 0;
-},
 
+    async deleteStaffRatings(staffId) {
+        const result = await StaffRating.deleteMany({ staffId });
+        return result.deletedCount || 0;
+    }
 };
