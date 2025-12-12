@@ -22,13 +22,13 @@ module.exports = {
         await DB.ensureStaffRecord(target.id);
 
         const [
-            specialWarns,
             report,
-            msgCount
+            msgCount,
+            avgRating
         ] = await Promise.all([
-            new Promise(r => DB.getSpecialWarnCount(target.id, r)),
-            new Promise(r => DB.getStaffReport(target.id, r)),
-            new Promise(r => DB.getMessageCount(target.id, r))
+            DB.getStaffReport(target.id),
+            DB.getMessageCount(target.id, "1447682897694691503"),
+            DB.getStaffAverageRating(target.id)
         ]);
 
         const data = report || {
@@ -41,6 +41,11 @@ module.exports = {
 
         const h = Math.floor(data.voiceMinutes / 60);
         const m = data.voiceMinutes % 60;
+
+        const ratingStars =
+            avgRating > 0
+                ? "⭐".repeat(Math.round(avgRating))
+                : "N/A";
 
         const embed = new EmbedBuilder()
             .setColor("#2b2d31")
@@ -59,8 +64,8 @@ ${msgCount}
 **Tickets claimed**
 ${data.ticketsClaimed || 0}
 
-**Special Warns**
-${specialWarns}`
+**Rating staff**
+${avgRating} ⭐ (${ratingStars})`
             )
             .setFooter({ text: `ID: ${target.id}` })
             .setTimestamp();

@@ -33,12 +33,17 @@ module.exports = {
                 const h = Math.floor((r.voiceMinutes || 0) / 60);
                 const m = (r.voiceMinutes || 0) % 60;
 
+                // ⭐ rating (DOAR CITIRE, NU ȘTERGEM)
+                const avgRating = await DB.getStaffAverageRating(r.staffId);
+                const ratingText = avgRating > 0 ? `${avgRating} ⭐` : "N/A";
+
                 logText += `Staff: ${r.staffId}\n`;
                 logText += `Warns: ${r.warnsGiven}\n`;
                 logText += `Mutes: ${r.mutesGiven}\n`;
                 logText += `Bans: ${r.bansGiven}\n`;
                 logText += `Tickets claimed: ${r.ticketsClaimed || 0}\n`;
                 logText += `Voice: ${h}h ${m}m\n`;
+                logText += `Rating: ${ratingText}\n`;
                 logText += `-----------------------------\n`;
             }
 
@@ -57,13 +62,14 @@ module.exports = {
                 });
             }
 
+            // ❗ Resetăm DOAR rapoartele, NU rating-urile
             await DB.resetStaffReports();
 
             return message.reply({
                 embeds: [
                     embeds.success(
                         "Reset complet",
-                        "Rapoartele au fost resetate și salvate."
+                        "Rapoartele au fost resetate și salvate.\nRating-urile staff NU au fost șterse."
                     )
                 ]
             });

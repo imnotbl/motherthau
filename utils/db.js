@@ -1,5 +1,5 @@
 // ============================================================
-//  MONGODB VERSION WITH SQLITE-COMPATIBLE API (FINAL VERSION)
+//  MONGODB VERSION – FINAL CLEAN & STABLE
 // ============================================================
 
 const mongoose = require("mongoose");
@@ -18,7 +18,7 @@ mongoose
 
 const counterSchema = new mongoose.Schema({
     _id: String,
-    seq: Number
+    seq: { type: Number, default: 0 }
 });
 const Counter = mongoose.model("Counter", counterSchema);
 
@@ -35,18 +35,17 @@ async function getNextId(table) {
 // SCHEMAS
 // ============================================================
 
-// WARN NORMAL
-const warnSchema = new mongoose.Schema({
+// WARNS
+const Warn = mongoose.model("Warn", new mongoose.Schema({
     id: Number,
     userId: String,
     moderatorId: String,
     reason: String,
     timestamp: Number
-});
-const Warn = mongoose.model("Warn", warnSchema);
+}));
 
 // MUTES
-const muteSchema = new mongoose.Schema({
+const Mute = mongoose.model("Mute", new mongoose.Schema({
     id: Number,
     userId: String,
     moderatorId: String,
@@ -55,90 +54,86 @@ const muteSchema = new mongoose.Schema({
     duration: Number,
     unmuteAt: Number,
     timestamp: Number
-});
-const Mute = mongoose.model("Mute", muteSchema);
+}));
 
 // MESSAGE LOGGING
-const messageSchema = new mongoose.Schema({
+const Message = mongoose.model("Message", new mongoose.Schema({
     id: Number,
     userId: String,
     channelId: String,
     timestamp: Number
-});
-const Message = mongoose.model("Message", messageSchema);
+}));
 
 // BANS
-const banSchema = new mongoose.Schema({
+const Ban = mongoose.model("Ban", new mongoose.Schema({
     id: Number,
     userId: String,
     moderatorId: String,
     reason: String,
     timestamp: Number
-});
-const Ban = mongoose.model("Ban", banSchema);
+}));
 
-// SPECIAL STAFF WARN
-const specialWarnSchema = new mongoose.Schema({
+// SPECIAL STAFF WARNS
+const SpecialWarn = mongoose.model("SpecialWarn", new mongoose.Schema({
     id: Number,
     userId: String,
     moderatorId: String,
     reason: String,
     timestamp: Number,
     expiresAt: Number
-});
-const SpecialWarn = mongoose.model("SpecialWarn", specialWarnSchema);
+}));
 
-// STAFF REPORTS (ALL ACTIVITY)
-const staffReportSchema = new mongoose.Schema({
+// STAFF REPORTS
+const StaffReport = mongoose.model("StaffReport", new mongoose.Schema({
     staffId: { type: String, unique: true },
-    warnsGiven: Number,
-    mutesGiven: Number,
-    bansGiven: Number,
-    ticketsCreated: Number,
-    ticketsClaimed: Number,
-    messagesSent: Number,
-    voiceMinutes: Number
-});
-const StaffReport = mongoose.model("StaffReport", staffReportSchema);
+    warnsGiven: { type: Number, default: 0 },
+    mutesGiven: { type: Number, default: 0 },
+    bansGiven: { type: Number, default: 0 },
+    ticketsCreated: { type: Number, default: 0 },
+    ticketsClaimed: { type: Number, default: 0 },
+    messagesSent: { type: Number, default: 0 },
+    voiceMinutes: { type: Number, default: 0 }
+}));
 
 // TICKETS
-const ticketSchema = new mongoose.Schema({
+const Ticket = mongoose.model("Ticket", new mongoose.Schema({
     id: Number,
     channelId: String,
     userId: String,
     claimedBy: String,
     createdAt: Number
-});
-const Ticket = mongoose.model("Ticket", ticketSchema);
+}));
+
+// STAFF RATINGS
+const StaffRating = mongoose.model("StaffRating", new mongoose.Schema({
+    id: Number,
+    staffId: String,
+    userId: String,
+    rating: Number,
+    timestamp: Number
+}));
 
 // ============================================================
-// EXPORT API (FINAL CLEAN VERSION)
+// EXPORT API (FINAL)
 // ============================================================
 
 module.exports = {
 
     // ----------------- WARNS -----------------
     async addWarn(userId, modId, reason) {
-        const newId = await getNextId("warns");
-        await Warn.create({
-            id: newId,
-            userId,
-            moderatorId: modId,
-            reason,
-            timestamp: Date.now()
-        });
+        const id = await getNextId("warns");
+        await Warn.create({ id, userId, moderatorId: modId, reason, timestamp: Date.now() });
     },
 
-    async getWarns(userId, callback) {
-        const rows = await Warn.find({ userId }).sort({ timestamp: -1 });
-        callback(rows || []);
+    async getWarns(userId) {
+        return Warn.find({ userId }).sort({ timestamp: -1 });
     },
 
-    async getActiveWarn(userId, callback) {
+    async getActiveWarn(userId) {
         const EXP = 15 * 60 * 1000;
         const row = await Warn.findOne({ userId }).sort({ timestamp: -1 });
-        if (!row) return callback(null);
-        callback(Date.now() - row.timestamp < EXP ? row : null);
+        if (!row) return null;
+        return Date.now() - row.timestamp < EXP ? row : null;
     },
 
     deleteExpiredWarns() {
@@ -147,11 +142,10 @@ module.exports = {
 
     // ----------------- MUTES -----------------
     async addMute(userId, modId, type, reason, duration) {
+        const id = await getNextId("mutes");
         const now = Date.now();
-        const newId = await getNextId("mutes");
-
         await Mute.create({
-            id: newId,
+            id,
             userId,
             moderatorId: modId,
             type,
@@ -162,80 +156,40 @@ module.exports = {
         });
     },
 
-    async getDueUnmutes(callback) {
-        const rows = await Mute.find({ unmuteAt: { $lte: Date.now() } });
-        callback(rows || []);
+    async getDueUnmutes() {
+        return Mute.find({ unmuteAt: { $lte: Date.now() } });
     },
 
     removeMute(id) {
         return Mute.deleteOne({ id });
     },
 
-    // ----------------- SPECIAL STAFF WARNS -----------------
-    async addSpecialWarn(userId, modId, reason) {
-        const newId = await getNextId("staff_special_warns");
-        await SpecialWarn.create({
-            id: newId,
-            userId,
-            moderatorId: modId,
-            reason,
-            timestamp: Date.now()
-        });
-    },
-
-    async getSpecialWarnCount(userId, callback) {
-        const count = await SpecialWarn.countDocuments({ userId });
-        callback(count);
-    },
-
-    async deleteLatestSpecialWarn(userId, callback) {
-        const row = await SpecialWarn.findOne({ userId }).sort({ id: -1 });
-        if (!row) return callback(false);
-        await SpecialWarn.deleteOne({ id: row.id });
-        callback(true);
-    },
-
-    // ----------------- STAFF REPORT SYSTEM -----------------
+    // ----------------- STAFF REPORTS -----------------
     async ensureStaffRecord(staffId) {
         await StaffReport.updateOne(
             { staffId },
-            {
-                $setOnInsert: {
-                    warnsGiven: 0,
-                    mutesGiven: 0,
-                    bansGiven: 0,
-                    ticketsCreated: 0,
-                    ticketsClaimed: 0,
-                    messagesSent: 0,
-                    voiceMinutes: 0
-                }
-            },
+            { $setOnInsert: {} },
             { upsert: true }
         );
     },
 
     incrementStaffField(staffId, field) {
+        return StaffReport.updateOne({ staffId }, { $inc: { [field]: 1 } });
+    },
+
+    async incrementStaffTickets(staffId) {
         return StaffReport.updateOne(
             { staffId },
-            { $inc: { [field]: 1 } }
+            { $inc: { ticketsClaimed: 1 } }
         );
     },
 
-    addVoiceMinutes(staffId, minutes) {
-        return StaffReport.updateOne(
-            { staffId },
-            { $inc: { voiceMinutes: minutes } }
-        );
+    async getStaffReport(staffId) {
+        return StaffReport.findOne({ staffId });
     },
 
-    async getStaffReport(staffId, callback) {
-        const row = await StaffReport.findOne({ staffId });
-        callback(row || null);
-    },
-
-    async getAllStaffReports(callback) {
-        const rows = await StaffReport.find();
-        callback(rows || []);
+    getAllStaffReports() {
+        return StaffReport.find();
     },
 
     resetStaffReports() {
@@ -244,30 +198,23 @@ module.exports = {
 
     // ----------------- MESSAGES -----------------
     async logMessage(userId, channelId) {
-        const newId = await getNextId("messages");
-        await Message.create({
-            id: newId,
-            userId,
-            channelId,
-            timestamp: Date.now()
-        });
+        const id = await getNextId("messages");
+        await Message.create({ id, userId, channelId, timestamp: Date.now() });
     },
 
-    async getMessageCount(userId, callback) {
-        const CHANNEL = "1447682897694691503";
-        const count = await Message.countDocuments({ userId, channelId: CHANNEL });
-        callback(count);
+    async getMessageCount(userId, channelId) {
+        return Message.countDocuments({ userId, channelId });
     },
 
     resetMessages() {
         return Message.deleteMany({});
     },
 
-    // ----------------- TICKET SYSTEM -----------------
+    // ----------------- TICKETS -----------------
     async addTicket(channelId, userId) {
-        const newId = await getNextId("tickets");
+        const id = await getNextId("tickets");
         await Ticket.create({
-            id: newId,
+            id,
             channelId,
             userId,
             claimedBy: null,
@@ -275,19 +222,39 @@ module.exports = {
         });
     },
 
-    async getTicket(channelId, callback) {
-        const ticket = await Ticket.findOne({ channelId });
-        callback(ticket || null);
+    async getTicket(channelId) {
+        return Ticket.findOne({ channelId });
     },
 
     deleteTicket(channelId) {
         return Ticket.deleteOne({ channelId });
     },
 
-    async incrementStaffTickets(staffId) {
-        return StaffReport.updateOne(
-            { staffId },
-            { $inc: { ticketsClaimed: 1 } }
-        );
-    }
+    // ----------------- STAFF RATINGS -----------------
+    async addStaffRating(staffId, userId, rating) {
+        const id = await getNextId("staff_ratings");
+        await StaffRating.create({
+            id,
+            staffId,
+            userId,
+            rating,
+            timestamp: Date.now()
+        });
+    },
+
+    async hasUserRated(staffId, userId) {
+        return !!(await StaffRating.findOne({ staffId, userId }));
+    },
+
+    async getStaffAverageRating(staffId) {
+        const rows = await StaffRating.find({ staffId });
+        if (!rows.length) return "0.00";
+        const avg = rows.reduce((a, b) => a + b.rating, 0) / rows.length;
+        return avg.toFixed(2);
+    },
+    async deleteStaffRatings(staffId) {
+    const result = await StaffRating.deleteMany({ staffId });
+    return result.deletedCount || 0;
+},
+
 };

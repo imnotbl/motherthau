@@ -23,20 +23,26 @@ module.exports = {
             }
 
             for (const row of rows) {
+                // messages
                 row.realMessages = await new Promise(r =>
                     DB.getMessageCount(row.staffId, r)
                 );
 
+                // voice
                 const h = Math.floor((row.voiceMinutes || 0) / 60);
                 const m = (row.voiceMinutes || 0) % 60;
                 row.voiceFormatted = `${h}h ${m}m`;
+
+                // ⭐ rating
+                const avgRating = await DB.getStaffAverageRating(row.staffId);
+                row.ratingFormatted = avgRating > 0 ? `${avgRating}⭐` : "N/A";
             }
 
             rows.sort((a, b) => b.realMessages - a.realMessages);
 
             let table = "**👥 RAPORT STAFF – ACTIVITATE**\n```ansi\n";
-            table += "USER               | WRN | MUT | BAN | TICK | MSG | VOICE\n";
-            table += "------------------------------------------------------------\n";
+            table += "USER               | WRN | MUT | BAN | TICK | MSG | VOICE  | RATE\n";
+            table += "-------------------------------------------------------------------\n";
 
             for (const r of rows) {
                 const member = message.guild.members.cache.get(r.staffId);
@@ -48,7 +54,8 @@ module.exports = {
                     + `${String(r.bansGiven).padEnd(3)} | `
                     + `${String(r.ticketsClaimed || 0).padEnd(4)} | `
                     + `${String(r.realMessages).padEnd(3)} | `
-                    + `${r.voiceFormatted}\n`;
+                    + `${r.voiceFormatted.padEnd(6)} | `
+                    + `${r.ratingFormatted}\n`;
             }
 
             table += "```";
