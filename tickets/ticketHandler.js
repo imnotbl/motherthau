@@ -9,23 +9,26 @@ const {
 const DB = require("../utils/db");
 const perms = require("../utils/permissions");
 const ticketPerms = require("../utils/ticketPermissions");
+const transcriptSys = require("./transcriptSystem");
+const githubUploader = require("../utils/githubUploader");
 
 const STAFF_ROLE = "1447684240966815977";
+const LOG_CHANNEL = "1447896638965415956";
 
-/**
- * 🔁 Butoane ticket
- */
+/* =====================================================
+   🔁 Ticket Buttons
+===================================================== */
 function getTicketButtons(ticket) {
     return new ActionRowBuilder().addComponents(
         ticket.claimedBy
             ? new ButtonBuilder()
-                  .setCustomId("unclaim_ticket")
-                  .setLabel("Unclaim")
-                  .setStyle(ButtonStyle.Secondary)
+                .setCustomId("unclaim_ticket")
+                .setLabel("Unclaim")
+                .setStyle(ButtonStyle.Secondary)
             : new ButtonBuilder()
-                  .setCustomId("claim_ticket")
-                  .setLabel("Claim")
-                  .setStyle(ButtonStyle.Success),
+                .setCustomId("claim_ticket")
+                .setLabel("Claim")
+                .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
             .setCustomId("close_ticket")
             .setLabel("Close")
@@ -81,45 +84,59 @@ module.exports = (client) => {
         }
 
         /* =====================================================
-           🔁 CHANGE PANEL (DROPDOWN)
+           ⭐ RATING BUTTONS (DM)
         ===================================================== */
-        if (interaction.isStringSelectMenu() && interaction.customId === "change_panel_select") {
-            const channel = interaction.channel;
-            const member = interaction.member;
-            const newPanel = interaction.values[0];
+        if (interaction.isButton() && interaction.customId.startsWith("rate_")) {
+            const [, staffId, value] = interaction.customId.split("_");
+            const rating = Number(value);
 
-            const PANELS = {
-                contact_owner: "c-owner",
-                help_info: "h-info",
-                report_staff: "rs",
-                report_member: "rm"
-            };
-
-            const ticket = await DB.getTicket(channel.id);
-            if (!ticket)
-                return interaction.reply({ content: "❌ Nu este ticket.", ephemeral: true });
-
-            if (ticket.claimedBy !== member.id && !perms.isTier2(member))
+            if (await DB.hasUserRated(staffId, interaction.user.id)) {
                 return interaction.reply({
-                    content: "❌ Doar claimerul sau Tier2 poate schimba panelul.",
+                    content: "⚠️ Ai oferit deja un rating.",
                     ephemeral: true
                 });
+            }
 
-            await interaction.deferUpdate();
+            await DB.addStaffRating(staffId, interaction.user.id, rating);
 
-            const suffix = channel.name.split("-").pop();
-            await channel.setName(`${PANELS[newPanel]}-${suffix}`);
-            await channel.setTopic(`Ticket creat de <@${ticket.userId}> | Tip: ${newPanel}`);
+            const disabledRow = new ActionRowBuilder().addComponents(
+                [1, 2, 3, 4, 5].map(n =>
+                    new ButtonBuilder()
+                        .setCustomId(`disabled_${n}`)
+                        .setLabel("⭐".repeat(n))
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true)
+                )
+            );
 
-            return interaction.editReply({
+            await interaction.update({
                 embeds: [
                     new EmbedBuilder()
                         .setColor("Green")
-                        .setTitle("✅ Panel schimbat")
-                        .setDescription(`Panel schimbat în **${newPanel.replace("_", " ")}**`)
+                        .setTitle("✅ Mulțumim pentru feedback!")
+                        .setDescription(`Ai acordat **${rating}⭐** staff-ului <@${staffId}>.`)
                 ],
-                components: []
+                components: [disabledRow]
             });
+
+            const avg = await DB.getStaffAverageRating(staffId);
+            const log = interaction.client.channels.cache.get(LOG_CHANNEL);
+
+            log?.send({
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor("Gold")
+                        .setTitle("⭐ Rating nou")
+                        .addFields(
+                            { name: "User", value: `<@${interaction.user.id}>`, inline: true },
+                            { name: "Staff", value: `<@${staffId}>`, inline: true },
+                            { name: "Rating", value: "⭐".repeat(rating), inline: true },
+                            { name: "Media", value: `${avg} ⭐`, inline: true }
+                        )
+                        .setTimestamp()
+                ]
+            });
+            return;
         }
 
         /* =====================================================
@@ -191,7 +208,7 @@ module.exports = (client) => {
             });
         }
 
-        /* ================= CLOSE ================= */
+        /* ================= CLOSE CONFIRM ================= */
         if (interaction.customId === "close_ticket") {
             if (!ticket.claimedBy)
                 return interaction.reply({
@@ -205,13 +222,86 @@ module.exports = (client) => {
                     ephemeral: true
                 });
 
-            await interaction.reply({
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId("confirm_close")
+                    .setLabel("Confirm")
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
+                    .setCustomId("cancel_close")
+                    .setLabel("Cancel")
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+            return interaction.reply({
                 embeds: [
                     new EmbedBuilder()
                         .setColor("Red")
-                        .setDescription("🗑️ Ticketul va fi închis.")
+                        .setDescription("❗ Ești sigur că vrei să închizi ticketul?")
+                ],
+                components: [row],
+                ephemeral: true
+            });
+        }
+
+        if (interaction.customId === "cancel_close") {
+            return interaction.update({ components: [] });
+        }
+
+        /* ================= FINAL CLOSE ================= */
+        if (interaction.customId === "confirm_close") {
+
+            const html = await transcriptSys.generateTranscript(channel);
+            const url = await githubUploader.uploadTranscript(html, `${channel.id}.html`);
+
+            /* LOG CHANNEL */
+            const log = interaction.guild.channels.cache.get(LOG_CHANNEL);
+            log?.send({
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor("Blurple")
+                        .setTitle("📄 Ticket închis")
+                        .addFields(
+                            { name: "User", value: `<@${ticket.userId}>`, inline: true },
+                            { name: "Staff", value: `<@${ticket.claimedBy}>`, inline: true },
+                            { name: "Transcript", value: `[Vezi aici](${url})` }
+                        )
+                        .setTimestamp()
                 ]
             });
+
+            /* DM USER */
+            try {
+                const user = await interaction.guild.members.fetch(ticket.userId);
+
+                await user.send({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor("Purple")
+                            .setTitle("📄 Transcript ticket")
+                            .setDescription(`[Vezi transcript](${url})`)
+                    ]
+                });
+
+                const ratingRow = new ActionRowBuilder().addComponents(
+                    [1, 2, 3, 4, 5].map(n =>
+                        new ButtonBuilder()
+                            .setCustomId(`rate_${ticket.claimedBy}_${n}`)
+                            .setLabel("⭐".repeat(n))
+                            .setStyle(ButtonStyle.Secondary)
+                    )
+                );
+
+                await user.send({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor("Gold")
+                            .setTitle("⭐ Evaluează staff-ul")
+                            .setDescription(`Staff: <@${ticket.claimedBy}>`)
+                    ],
+                    components: [ratingRow]
+                });
+            } catch {}
 
             await DB.deleteTicket(channel.id);
             return channel.delete();
