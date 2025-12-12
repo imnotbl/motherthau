@@ -1,84 +1,70 @@
-const fs = require("fs");
-const embeds = require("../utils/embedBuilder");
+const { EmbedBuilder } = require("discord.js");
 const DB = require("../utils/db");
+const embeds = require("../utils/embedBuilder");
 
 module.exports = {
-    name: "resetraportstaff",
-    description: "Resetează TOATE rapoartele staff și le salvează într-un fișier.",
-    async execute(message, args, client) {
+    name: "raport",
+    description: "Arată raportul complet al unui membru staff.",
 
-        const ALLOWED_ROLES = [
-            "1447946562184548414",
-            "1447946410434498632",
-            "1447946434660794491"
-        ];
+    async execute(message, args) {
 
-        // verificăm accesul
-        if (!message.member.roles.cache.some(r => ALLOWED_ROLES.includes(r.id))) {
+        const STAFF_ROLE = "1447684240966815977";
+
+        if (!message.member.roles.cache.has(STAFF_ROLE)) {
             return message.reply({
-                embeds: [embeds.error("Acces refuzat", "Nu ai permisiune să folosești această comandă.")]
+                embeds: [embeds.error("Acces refuzat", "Nu figurezi ca staff.")]
             });
         }
 
-        DB.getAllStaffReports(async (rows) => {
+        const target = message.mentions.members.first() || message.member;
+        const avatarURL = target.user.displayAvatarURL({ size: 512 });
 
-            if (!rows || rows.length === 0) {
-                return message.reply({
-                    embeds: [embeds.error("Eroare", "Nu există date de resetat.")]
-                });
-            }
+        await DB.ensureStaffRecord(target.id);
 
-            // generăm conținutul fișierului
-            let logText = "=== RAPORT STAFF — BACKUP ÎNAINTE DE RESET ===\n\n";
+        const [
+            specialWarns,
+            report,
+            msgCount
+        ] = await Promise.all([
+            new Promise(r => DB.getSpecialWarnCount(target.id, r)),
+            new Promise(r => DB.getStaffReport(target.id, r)),
+            new Promise(r => DB.getMessageCount(target.id, r))
+        ]);
 
-            for (const row of rows) {
+        const data = report || {
+            warnsGiven: 0,
+            mutesGiven: 0,
+            bansGiven: 0,
+            ticketsClaimed: 0,
+            voiceMinutes: 0
+        };
 
-                // 🔥 conversie minute → ore + minute
-                const total = row.voiceMinutes || 0;
-                const hours = Math.floor(total / 60);
-                const minutes = total % 60;
-                const voiceFormatted = `${hours}h ${minutes}m`;
+        const h = Math.floor(data.voiceMinutes / 60);
+        const m = data.voiceMinutes % 60;
 
-                logText += `Staff: ${row.staffId}\n`;
-                logText += ` • Warn-uri date: ${row.warnsGiven}\n`;
-                logText += ` • Mute-uri date: ${row.mutesGiven}\n`;
-                logText += ` • Ban-uri date: ${row.bansGiven}\n`;
-                logText += ` • Tickete create: ${row.ticketsCreated}\n`;
-                logText += ` • Mesaje trimise: ${row.messagesSent}\n`;
-                logText += ` • Timp Voice: ${voiceFormatted} (${row.voiceMinutes} minute)\n`;
-                logText += `----------------------------------------\n`;
-            }
+        const embed = new EmbedBuilder()
+            .setColor("#2b2d31")
+            .setAuthor({
+                name: `📋 Raport — ${target.user.username}`,
+                iconURL: avatarURL
+            })
+            .setThumbnail(avatarURL)
+            .setDescription(
+`**Mutes**  **Bans**  **Voice**
+${data.mutesGiven}   ${data.bansGiven}   ${h}h ${m}m
 
-            // creăm folder dacă nu există
-            if (!fs.existsSync("./staff_backups")) {
-                fs.mkdirSync("./staff_backups");
-            }
+**Messages (staff)**
+${msgCount}
 
-            const filePath = `./staff_backups/staff_backup_${Date.now()}.txt`;
-            fs.writeFileSync(filePath, logText);
+**Tickets claimed**
+${data.ticketsClaimed || 0}
 
-            // trimitem backup-ul pe canal
-            const logChannelId = "1448350217593163838";
-            const logChannel = message.guild.channels.cache.get(logChannelId);
+**Special Warns**
+${specialWarns}`
+            )
+            .setFooter({ text: `ID: ${target.id}` })
+            .setTimestamp();
 
-            if (logChannel) {
-                await logChannel.send({
-                    content: "📄 **Backup înainte de resetarea rapoartelor staff:**",
-                    files: [filePath]
-                });
-            }
-
-            // 🔥 RESETĂM staff_reports
-            DB.resetStaffReports();
-
-            return message.reply({
-                embeds: [
-                    embeds.success(
-                        "Reset complet",
-                        "Toate rapoartele staff au fost resetate și backup-ul a fost trimis."
-                    )
-                ]
-            });
-        });
+        return message.reply({ embeds: [embed] });
     }
 };
