@@ -9,6 +9,7 @@ module.exports = (client) => {
     let embed = new EmbedBuilder()
       .setColor("#5865F2")
       .setThumbnail(interaction.client.user.displayAvatarURL())
+      .setFooter({ text: "Awoken Bot • Help Menu" })
       .setTimestamp();
 
     const choice = interaction.values[0];
@@ -18,13 +19,16 @@ module.exports = (client) => {
     // ------------------------------
     if (choice === "user") {
       embed
-        .setTitle("👤 Comenzi utilizator")
+        .setTitle("👤 Comenzi Utilizator")
         .setDescription(`
 ### 📘 Help
 \`#help\` – Meniul de ajutor
 
-### 📊 Raport
-\`#raport\` – Vezi raportul tău complet
+### 📊 Raport personal
+\`#raport\` – Vezi raportul tău (staff)
+
+### ⭐ Feedback
+Rating staff – se oferă automat la închiderea ticketului
         `);
     }
 
@@ -33,7 +37,7 @@ module.exports = (client) => {
     // ------------------------------
     if (choice === "mod") {
       embed
-        .setTitle("🛠 Comenzi de moderare")
+        .setTitle("🛠 Comenzi Moderare")
         .setDescription(`
 ### ⚠️ Warn
 \`#warn @user motiv\`
@@ -41,6 +45,9 @@ module.exports = (client) => {
 ### 🔇 Mute
 \`#cmute @user motiv\`  
 \`#vmute @user motiv\`  
+
+### 🔊 Unmute
+\`#cunmute @user\`  
 \`#vunmute @user\`
 
 ### 🔨 Ban
@@ -56,11 +63,19 @@ module.exports = (client) => {
       embed
         .setTitle("🎫 Comenzi Tickete")
         .setDescription(`
-### 👥 Management Ticket
-\`#add @user\` – Adaugă în ticket  
-\`#remove @user\` – Scoate din ticket  
+### 🏷 Management Ticket
+\`/claim\` – Revendică ticket  
+\`/unclaim\` – Eliberează ticket  
+\`Close (buton)\` – Închide ticket  
 
-### 🏗 Setup Sistem
+### 🔁 Panel
+\`#changepannel\` – Schimbă tipul ticketului (dropdown)
+
+### 👥 Membri
+\`#add @user\` – Adaugă user în ticket  
+\`#remove @user\` – Scoate user din ticket  
+
+### 🏗 Setup
 \`#setupticket\` – Creează panoul de tichete
         `);
     }
@@ -72,13 +87,15 @@ module.exports = (client) => {
       embed
         .setTitle("👑 Comenzi Staff Management")
         .setDescription(`
-### ⚠️ Staff Warn
-\`#swarn @staff motiv\`  
-\`#delsw @staff\`
+### 📊 Rapoarte
+\`#raport\` – Raport staff individual  
+\`#checkraportstaff\` – Toți membrii staff  
+\`#resetraportstaff\` – Reset + backup
 
-### 📊 Rapoarte Staff
-\`#checkraportstaff\`  
-\`#resetraportstaff\`
+### ⭐ Rating Staff
+Rating primit automat la închiderea ticketului  
+\`#deleteratingstaff @staff\` – Șterge rating (Tier2)
+
         `);
     }
 
@@ -93,9 +110,16 @@ module.exports = (client) => {
 \`#addrole <iduser> <idrol>\`  
 \`#removerole <iduser> <idrol>\`  
 \`#massaddrole <idrol>\`
+
+### ⚙️ Sistem
+\`#reload\` – Reload bot  
+\`#clear\` – Curăță mesaje
         `);
     }
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({
+      embeds: [embed],
+      ephemeral: true
+    });
   });
 };
