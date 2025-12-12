@@ -46,4 +46,3 @@ async function uploadTranscript(html, fileName) {
 }
 
 module.exports = { uploadTranscript };
-s
