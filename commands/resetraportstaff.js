@@ -5,6 +5,7 @@ const DB = require("../utils/db");
 module.exports = {
     name: "resetraportstaff",
     description: "Resetează TOATE rapoartele staff (cu backup).",
+
     async execute(message) {
 
         const ALLOWED_ROLES = [
@@ -19,60 +20,62 @@ module.exports = {
             });
         }
 
-        DB.getAllStaffReports(async (rows) => {
+        // ✅ CORECT: await, NU callback
+        const rows = await DB.getAllStaffReports();
 
-            if (!rows || rows.length === 0) {
-                return message.reply({
-                    embeds: [embeds.error("Eroare", "Nu există date.")]
-                });
-            }
-
-            let logText = "=== BACKUP RAPORT STAFF ===\n\n";
-
-            for (const r of rows) {
-                const h = Math.floor((r.voiceMinutes || 0) / 60);
-                const m = (r.voiceMinutes || 0) % 60;
-
-                // ⭐ rating (DOAR CITIRE, NU ȘTERGEM)
-                const avgRating = await DB.getStaffAverageRating(r.staffId);
-                const ratingText = avgRating > 0 ? `${avgRating} ⭐` : "N/A";
-
-                logText += `Staff: ${r.staffId}\n`;
-                logText += `Warns: ${r.warnsGiven}\n`;
-                logText += `Mutes: ${r.mutesGiven}\n`;
-                logText += `Bans: ${r.bansGiven}\n`;
-                logText += `Tickets claimed: ${r.ticketsClaimed || 0}\n`;
-                logText += `Voice: ${h}h ${m}m\n`;
-                logText += `Rating: ${ratingText}\n`;
-                logText += `-----------------------------\n`;
-            }
-
-            if (!fs.existsSync("./staff_backups")) {
-                fs.mkdirSync("./staff_backups");
-            }
-
-            const filePath = `./staff_backups/staff_backup_${Date.now()}.txt`;
-            fs.writeFileSync(filePath, logText);
-
-            const logChannel = message.guild.channels.cache.get("1448350217593163838");
-            if (logChannel) {
-                await logChannel.send({
-                    content: "📄 Backup raport staff:",
-                    files: [filePath]
-                });
-            }
-
-            // ❗ Resetăm DOAR rapoartele, NU rating-urile
-            await DB.resetStaffReports();
-
+        if (!rows || rows.length === 0) {
             return message.reply({
-                embeds: [
-                    embeds.success(
-                        "Reset complet",
-                        "Rapoartele au fost resetate și salvate.\nRating-urile staff NU au fost șterse."
-                    )
-                ]
+                embeds: [embeds.error("Eroare", "Nu există date.")]
             });
+        }
+
+        let logText = "=== BACKUP RAPORT STAFF ===\n\n";
+
+        for (const r of rows) {
+            const h = Math.floor((r.voiceMinutes || 0) / 60);
+            const m = (r.voiceMinutes || 0) % 60;
+
+            // ⭐ rating (DOAR CITIRE, NU ȘTERGEM)
+            const avgRating = await DB.getStaffAverageRating(r.staffId);
+            const ratingText = avgRating > 0 ? `${avgRating} ⭐` : "N/A";
+
+            logText += `Staff: ${r.staffId}\n`;
+            logText += `Warns: ${r.warnsGiven || 0}\n`;
+            logText += `Mutes: ${r.mutesGiven || 0}\n`;
+            logText += `Bans: ${r.bansGiven || 0}\n`;
+            logText += `Tickets claimed: ${r.ticketsClaimed || 0}\n`;
+            logText += `Voice: ${h}h ${m}m\n`;
+            logText += `Rating: ${ratingText}\n`;
+            logText += `-----------------------------\n`;
+        }
+
+        // 📁 folder backup
+        if (!fs.existsSync("./staff_backups")) {
+            fs.mkdirSync("./staff_backups");
+        }
+
+        const filePath = `./staff_backups/staff_backup_${Date.now()}.txt`;
+        fs.writeFileSync(filePath, logText);
+
+        // 📤 log channel
+        const logChannel = message.guild.channels.cache.get("1448350217593163838");
+        if (logChannel) {
+            await logChannel.send({
+                content: "📄 Backup raport staff:",
+                files: [filePath]
+            });
+        }
+
+        // ❗ resetăm DOAR rapoartele (NU rating-urile)
+        await DB.resetStaffReports();
+
+        return message.reply({
+            embeds: [
+                embeds.success(
+                    "Reset complet",
+                    "Rapoartele au fost resetate și salvate.\n⭐ Rating-urile staff NU au fost șterse."
+                )
+            ]
         });
     }
 };

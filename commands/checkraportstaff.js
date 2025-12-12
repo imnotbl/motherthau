@@ -4,6 +4,7 @@ const DB = require("../utils/db");
 module.exports = {
     name: "checkraportstaff",
     description: "Afișează rapoartele membrilor staff",
+
     async execute(message) {
 
         const ALLOWED_ROLES = [
@@ -16,58 +17,58 @@ module.exports = {
             return message.reply("❌ Nu ai acces.");
         }
 
-        DB.getAllStaffReports(async (rows) => {
+        // ✅ CORECT: await, NU callback
+        const rows = await DB.getAllStaffReports();
 
-            if (!rows || rows.length === 0) {
-                return message.channel.send("📭 Nu există date.");
-            }
+        if (!rows || rows.length === 0) {
+            return message.channel.send("📭 Nu există date.");
+        }
 
-            for (const row of rows) {
-                // messages
-                row.realMessages = await new Promise(r =>
-                    DB.getMessageCount(row.staffId, r)
-                );
+        for (const row of rows) {
 
-                // voice
-                const h = Math.floor((row.voiceMinutes || 0) / 60);
-                const m = (row.voiceMinutes || 0) % 60;
-                row.voiceFormatted = `${h}h ${m}m`;
+            // ✅ messages
+            row.realMessages = await DB.getMessageCount(row.staffId, message.channel.id)
+                .catch(() => 0);
 
-                // ⭐ rating
-                const avgRating = await DB.getStaffAverageRating(row.staffId);
-                row.ratingFormatted = avgRating > 0 ? `${avgRating}⭐` : "N/A";
-            }
+            // ✅ voice
+            const h = Math.floor((row.voiceMinutes || 0) / 60);
+            const m = (row.voiceMinutes || 0) % 60;
+            row.voiceFormatted = `${h}h ${m}m`;
 
-            rows.sort((a, b) => b.realMessages - a.realMessages);
+            // ✅ rating
+            const avgRating = await DB.getStaffAverageRating(row.staffId);
+            row.ratingFormatted = avgRating > 0 ? `${avgRating}⭐` : "N/A";
+        }
 
-            let table = "**👥 RAPORT STAFF – ACTIVITATE**\n```ansi\n";
-            table += "USER               | WRN | MUT | BAN | TICK | MSG | VOICE  | RATE\n";
-            table += "-------------------------------------------------------------------\n";
+        rows.sort((a, b) => b.realMessages - a.realMessages);
 
-            for (const r of rows) {
-                const member = message.guild.members.cache.get(r.staffId);
-                const name = member ? member.user.username : r.staffId;
+        let table = "**👥 RAPORT STAFF – ACTIVITATE**\n```ansi\n";
+        table += "USER               | WRN | MUT | BAN | TICK | MSG | VOICE  | RATE\n";
+        table += "-------------------------------------------------------------------\n";
 
-                table += `${name.padEnd(18)} | `
-                    + `${String(r.warnsGiven).padEnd(3)} | `
-                    + `${String(r.mutesGiven).padEnd(3)} | `
-                    + `${String(r.bansGiven).padEnd(3)} | `
-                    + `${String(r.ticketsClaimed || 0).padEnd(4)} | `
-                    + `${String(r.realMessages).padEnd(3)} | `
-                    + `${r.voiceFormatted.padEnd(6)} | `
-                    + `${r.ratingFormatted}\n`;
-            }
+        for (const r of rows) {
+            const member = message.guild.members.cache.get(r.staffId);
+            const name = member ? member.user.username : r.staffId;
 
-            table += "```";
+            table += `${name.padEnd(18)} | `
+                + `${String(r.warnsGiven || 0).padEnd(3)} | `
+                + `${String(r.mutesGiven || 0).padEnd(3)} | `
+                + `${String(r.bansGiven || 0).padEnd(3)} | `
+                + `${String(r.ticketsClaimed || 0).padEnd(4)} | `
+                + `${String(r.realMessages || 0).padEnd(3)} | `
+                + `${r.voiceFormatted.padEnd(6)} | `
+                + `${r.ratingFormatted}\n`;
+        }
 
-            const embed = new EmbedBuilder()
-                .setColor("Blurple")
-                .setTitle("📊 Raport Staff – Activitate")
-                .setDescription(table)
-                .setFooter({ text: "Awoken Staff System" })
-                .setTimestamp();
+        table += "```";
 
-            return message.channel.send({ embeds: [embed] });
-        });
+        const embed = new EmbedBuilder()
+            .setColor("Blurple")
+            .setTitle("📊 Raport Staff – Activitate")
+            .setDescription(table)
+            .setFooter({ text: "Awoken Staff System" })
+            .setTimestamp();
+
+        return message.channel.send({ embeds: [embed] });
     }
 };
