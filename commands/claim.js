@@ -20,6 +20,7 @@ module.exports = {
             });
         }
 
+        // 🔒 DOAR STAFF
         if (!perms.isTier1(member) && !perms.isTier2(member)) {
             return interaction.reply({
                 content: "❌ Nu ai permisiune.",
@@ -27,22 +28,22 @@ module.exports = {
             });
         }
 
+        // 🔒 BLOCAT DACĂ E DEJA CLAIMED
         if (ticket.claimedBy) {
             return interaction.reply({
-                content: "⚠️ Ticketul este deja revendicat.",
+                content: `⚠️ Ticketul este deja revendicat de <@${ticket.claimedBy}>.`,
                 ephemeral: true
             });
         }
 
+        // ✅ CLAIM
         ticket.claimedBy = member.id;
+        await ticket.save();
 
-        if (!ticket.credited) {
-            await DB.incrementStaffTickets(member.id);
-            ticket.credited = true;
-        }
+        // ✅ STATS
+        await DB.incrementStaffTickets(member.id);
 
-        await ticket.save?.();
-
+        // ✅ PERMISIUNI
         ticketPerms.applyClaim(
             channel,
             member.id,
@@ -58,6 +59,6 @@ module.exports = {
             .setFooter({ text: `Staff ID: ${member.id}` })
             .setTimestamp();
 
-        await interaction.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
     }
 };

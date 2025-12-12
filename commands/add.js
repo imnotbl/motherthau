@@ -1,6 +1,6 @@
-const embeds = require('../utils/embedBuilder');
-const perms = require('../utils/permissions');
-const DB = require('../utils/db');
+const embeds = require("../utils/embedBuilder");
+const perms = require("../utils/permissions");
+const DB = require("../utils/db");
 
 module.exports = {
     name: "add",
@@ -13,10 +13,11 @@ module.exports = {
 
         if (!target) {
             const id = args[0];
-            if (!id)
+            if (!id) {
                 return message.reply({
                     embeds: [embeds.error("Eroare", "Menționează un user sau folosește un ID.")]
                 });
+            }
 
             try {
                 target = await message.guild.members.fetch(id);
@@ -28,33 +29,35 @@ module.exports = {
         }
 
         // — LUĂM TICKETUL DIN MONGODB —
-        DB.getTicket(channel.id, async (ticket) => {
+        const ticket = await DB.getTicket(channel.id);
 
-            if (!ticket) {
-                return message.reply({
-                    embeds: [embeds.error("Eroare", "Acesta nu este un canal de ticket.")]
-                });
-            }
-
-            const claimer = ticket.claimedBy;
-
-            if (claimer !== message.author.id) {
-                return message.reply({
-                    embeds: [embeds.error("Eroare", "Doar claimer-ul poate adăuga persoane în ticket.")]
-                });
-            }
-
-            // — PERMISIUNI —
-            await channel.permissionOverwrites.edit(target.id, {
-                ViewChannel: true,
-                SendMessages: true,
-                AttachFiles: true,
-            });
-
+        if (!ticket) {
             return message.reply({
-                embeds: [embeds.success("User adăugat", `${target} a fost adăugat în ticket.`)]
+                embeds: [embeds.error("Eroare", "Acesta nu este un canal de ticket.")]
             });
+        }
 
+        // — DOAR CLAIMER-UL —
+        if (ticket.claimedBy !== message.author.id) {
+            return message.reply({
+                embeds: [embeds.error("Eroare", "Doar claimer-ul poate adăuga persoane în ticket.")]
+            });
+        }
+
+        // — PERMISIUNI —
+        await channel.permissionOverwrites.edit(target.id, {
+            ViewChannel: true,
+            SendMessages: true,
+            AttachFiles: true
+        });
+
+        return message.reply({
+            embeds: [
+                embeds.success(
+                    "User adăugat",
+                    `${target} a fost adăugat în ticket.`
+                )
+            ]
         });
     }
 };

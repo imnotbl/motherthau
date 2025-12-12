@@ -1,6 +1,6 @@
-const embeds = require('../utils/embedBuilder');
-const perms = require('../utils/permissions');
-const DB = require('../utils/db');
+const embeds = require("../utils/embedBuilder");
+const perms = require("../utils/permissions");
+const DB = require("../utils/db");
 
 module.exports = {
     name: "remove",
@@ -28,29 +28,38 @@ module.exports = {
         }
 
         // — LUĂM TICKETUL DIN MONGODB —
-        DB.getTicket(channel.id, async (ticket) => {
+        const ticket = await DB.getTicket(channel.id);
 
-            if (!ticket) {
-                return message.reply({
-                    embeds: [embeds.error("Eroare", "Acest canal nu este un ticket valid.")]
-                });
-            }
-
-            const claimer = ticket.claimedBy;
-
-            // — PERMISIUNI: doar claimer sau Tier2 —
-            if (claimer !== message.author.id && !perms.isTier2(message.member)) {
-                return message.reply({
-                    embeds: [embeds.error("Eroare", "Nu poți scoate membri. Doar claimer sau Tier 2 poate.")]
-                });
-            }
-
-            // — ȘTERGEM PERMISIUNILE —
-            await channel.permissionOverwrites.delete(target.id).catch(() => {});
-
+        if (!ticket) {
             return message.reply({
-                embeds: [embeds.success("User eliminat", `${target} a fost eliminat din ticket.`)]
+                embeds: [embeds.error("Eroare", "Acest canal nu este un ticket valid.")]
             });
+        }
+
+        // — PERMISIUNI: doar claimer sau Tier2 —
+        if (ticket.claimedBy !== message.author.id && !perms.isTier2(message.member)) {
+            return message.reply({
+                embeds: [
+                    embeds.error(
+                        "Eroare",
+                        "Nu poți scoate membri. Doar claimer-ul sau Tier2 poate."
+                    )
+                ]
+            });
+        }
+
+        // — ȘTERGEM PERMISIUNILE —
+        await channel.permissionOverwrites
+            .delete(target.id)
+            .catch(() => {});
+
+        return message.reply({
+            embeds: [
+                embeds.success(
+                    "User eliminat",
+                    `${target} a fost eliminat din ticket.`
+                )
+            ]
         });
     }
 };

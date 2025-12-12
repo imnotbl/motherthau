@@ -178,6 +178,57 @@ module.exports = (client) => {
             .fetch(ticket.messageId)
             .catch(() => null);
 
+            // =====================================================
+// 🔁 CHANGE PANEL DROPDOWN
+// =====================================================
+if (interaction.isStringSelectMenu() && interaction.customId === "change_panel_select") {
+
+    const channel = interaction.channel;
+    const member = interaction.member;
+    const newPanel = interaction.values[0];
+
+    const PANELS = {
+        contact_owner: "c-owner",
+        help_info: "h-info",
+        report_staff: "rs",
+        report_member: "rm"
+    };
+
+    const ticket = await DB.getTicket(channel.id);
+    if (!ticket) {
+        return interaction.reply({
+            content: "❌ Acesta nu este un ticket.",
+            ephemeral: true
+        });
+    }
+
+    if (ticket.claimedBy !== member.id && !perms.isTier2(member)) {
+        return interaction.reply({
+            content: "❌ Nu ai permisiune să schimbi panelul.",
+            ephemeral: true
+        });
+    }
+
+    const suffix = channel.name.split("-").slice(-1)[0];
+    const newName = `${PANELS[newPanel]}-${suffix}`;
+
+    await channel.setName(newName);
+    await channel.setTopic(
+        `Ticket creat de <@${ticket.userId}> | Tip: ${newPanel}`
+    );
+
+    return interaction.update({
+        embeds: [
+            new EmbedBuilder()
+                .setColor("Green")
+                .setTitle("✅ Panel schimbat")
+                .setDescription(`Ticketul a fost mutat pe **${newPanel.replace("_", " ")}**.`)
+        ],
+        components: []
+    });
+}
+
+
         // =====================================================
         // CLAIM
         // =====================================================

@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const DB = require("../utils/db");
-const perms = require("../utils/permissions");
 const ticketPerms = require("../utils/ticketPermissions");
 
 module.exports = {
@@ -20,21 +19,29 @@ module.exports = {
             });
         }
 
-        if (ticket.claimedBy !== member.id && !perms.isTier2(member)) {
+        if (!ticket.claimedBy) {
             return interaction.reply({
-                content: "❌ Nu poți da unclaim.",
+                content: "⚠️ Ticketul nu este revendicat.",
                 ephemeral: true
             });
         }
 
-        ticket.claimedBy = null;
-        await ticket.save?.();
+        // 🔒 DOAR CLAIMERUL
+        if (ticket.claimedBy !== member.id) {
+            return interaction.reply({
+                content: "❌ Doar staff-ul care a dat claim poate da unclaim.",
+                ephemeral: true
+            });
+        }
 
+        // ✅ RESET CLAIM
+        ticket.claimedBy = null;
+        await ticket.save();
+
+        // ✅ RESET PERMISIUNI
         ticketPerms.applyInitialPermissions(
             channel,
-            ticket.userId,
-            perms.roles.tier1,
-            perms.roles.tier2
+            ticket.userId
         );
 
         const embed = new EmbedBuilder()
@@ -44,6 +51,6 @@ module.exports = {
             .setFooter({ text: `Staff ID: ${member.id}` })
             .setTimestamp();
 
-        await interaction.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
     }
 };
