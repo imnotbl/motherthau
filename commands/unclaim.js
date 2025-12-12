@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
-const DB = require("../../utils/db");
-const perms = require("../../utils/permissions");
-const ticketPerms = require("../../utils/ticketPermissions");
+const DB = require("../utils/db");
+const perms = require("../utils/permissions");
+const ticketPerms = require("../utils/ticketPermissions");
 
 module.exports = {
     data: new SlashCommandBuilder()
